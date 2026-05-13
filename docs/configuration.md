@@ -9,6 +9,8 @@ This document outlines the environment variables available for configuring the `
 | `REFRESH_WORKER`     | When `true`, the worker pod will stop after each completed job to ensure a clean state for the next job. See the [RunPod documentation](https://docs.runpod.io/docs/handler-additional-controls#refresh-worker) for details. | `false` |
 | `SERVE_API_LOCALLY`  | When `true`, enables a local HTTP server simulating the RunPod environment for development and testing. See the [Development Guide](development.md#local-api) for more details.                                              | `false` |
 | `COMFY_ORG_API_KEY`  | Comfy.org API key to enable ComfyUI API Nodes. If set, it is sent with each workflow; clients can override per request via `input.api_key_comfy_org`.                                                                        | –       |
+| `FAL_KEY`            | fal.ai API key used by the `ComfyUI-fal-API` custom node. On container start, the worker writes this value to the node's `config.ini` (`[API]` / `FAL_KEY`) and also exports it as an environment variable.                | –       |
+| `FAL_API_KEY`        | Alias for `FAL_KEY`. Use this only if `FAL_KEY` is not set.                                                                                                                             | –       |
 
 ## Logging Configuration
 
@@ -27,7 +29,7 @@ This document outlines the environment variables available for configuring the `
 
 ## AWS S3 Upload Configuration
 
-Configure these variables **only** if you want the worker to upload generated images directly to an AWS S3 bucket. If these are not set, images will be returned as base64-encoded strings in the API response.
+Configure these variables **only** if you want the worker to upload generated images/videos directly to an S3-compatible bucket (AWS S3, Cloudflare R2, or other S3-compatible providers). If these are not set, images/videos will be returned as base64-encoded strings in the API response.
 
 - **Prerequisites:**
   - An AWS S3 bucket in your desired region.
@@ -39,8 +41,22 @@ Configure these variables **only** if you want the worker to upload generated im
 | `BUCKET_ENDPOINT_URL`      | The full endpoint URL of your S3 bucket. **Must be set to enable S3 upload.**                                                           | `https://<your-bucket-name>.s3.<aws-region>.amazonaws.com` |
 | `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID associated with the IAM user that has write permissions to the bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE`                                     |
 | `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key associated with the IAM user. Required if `BUCKET_ENDPOINT_URL` is set.                                      | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                 |
+| `BUCKET_NAME`              | The bucket name to upload to (for S3-compatible endpoints). Required when `BUCKET_ENDPOINT_URL` is set.                                | `my-bucket`                                                |
 
 **Note:** Upload uses the `runpod` Python library helper `rp_upload.upload_image`, which handles creating a unique path within the bucket based on the `job_id`.
+
+When using Cloudflare R2 (or other S3-compatible storage), set `BUCKET_ENDPOINT_URL` to your provider's endpoint (for R2: `https://<accountid>.r2.cloudflarestorage.com`) and set `BUCKET_NAME` to your R2 bucket.
+
+If you want to control the final filename used when uploading (for example to use the pattern `<userID><reqID>.<ext>`), include `output_filename` and/or `user_id` in the job `input` JSON. Examples:
+
+- `output_filename`: A string; may include placeholders `{user_id}` and `{req_id}` which will be replaced with the provided `user_id` and the worker `job.id` respectively. If the template does not include a file extension, the worker will append the detected file extension.
+- `user_id`: A short identifier supplied by the client which can be used in `output_filename` or as part of the generated filename when `output_filename` is not provided.
+
+Examples:
+
+- `"output_filename": "{user_id}{req_id}.png"` → results in `alice12345abcd.png` if `user_id` is `alice` and `job.id` is `12345abcd`.
+- `"user_id": "alice"` plus no `output_filename` → results in a filename like `alice12345abcd.png`.
+
 
 ### Example S3 Response
 

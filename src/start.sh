@@ -22,30 +22,30 @@ fi
 TCMALLOC="$(ldconfig -p | grep -Po "libtcmalloc.so.\d" | head -n 1)"
 export LD_PRELOAD="${TCMALLOC}"
 
-# ---------------------------------------------------------------------------
-# GPU pre-flight check
-# Verify that the GPU is accessible before starting ComfyUI. If PyTorch
-# cannot initialize CUDA the worker will never be able to process jobs,
-# so we fail fast with an actionable error message.
-# ---------------------------------------------------------------------------
-echo "worker-comfyui: Checking GPU availability..."
-if ! GPU_CHECK=$(python3 -c "
-import torch
-try:
-    torch.cuda.init()
-    name = torch.cuda.get_device_name(0)
-    print(f'OK: {name}')
-except Exception as e:
-    print(f'FAIL: {e}')
-    exit(1)
-" 2>&1); then
-    echo "worker-comfyui: GPU is not available. PyTorch CUDA init failed:"
-    echo "worker-comfyui: $GPU_CHECK"
-    echo "worker-comfyui: This usually means the GPU on this machine is not properly initialized."
-    echo "worker-comfyui: Please contact RunPod support and report this machine."
-    exit 1
+echo "worker-comfyui: Running in CPU-only mode"
+
+# Configure ComfyUI-fal-API key if provided through environment variables.
+# Preferred variable is FAL_KEY, with FAL_API_KEY as a fallback alias.
+if [ -n "${FAL_KEY:-}" ] || [ -n "${FAL_API_KEY:-}" ]; then
+    effective_fal_key="${FAL_KEY:-${FAL_API_KEY}}"
+    export FAL_KEY="${effective_fal_key}"
+
+    fal_node_dir=""
+    if [ -d "/comfyui/custom_nodes/ComfyUI-fal-API" ]; then
+        fal_node_dir="/comfyui/custom_nodes/ComfyUI-fal-API"
+    else
+        fal_node_dir="$(find /comfyui/custom_nodes -maxdepth 2 -type d -iname '*fal*api*' | head -n 1 || true)"
+    fi
+
+    if [ -n "${fal_node_dir}" ]; then
+        fal_config_file="${fal_node_dir}/config.ini"
+        printf '[API]\nFAL_KEY = %s\n' "${effective_fal_key}" > "${fal_config_file}"
+        chmod 600 "${fal_config_file}" || true
+        echo "worker-comfyui: Wrote fal config to ${fal_config_file}"
+    else
+        echo "worker-comfyui: FAL key provided but ComfyUI-fal-API directory was not found; relying on FAL_KEY environment variable"
+    fi
 fi
-echo "worker-comfyui: GPU available — $GPU_CHECK"
 
 # Ensure ComfyUI-Manager runs in offline network mode inside the container
 comfy-manager-set-mode offline || echo "worker-comfyui - Could not set ComfyUI-Manager network_mode" >&2
@@ -60,13 +60,13 @@ COMFY_PID_FILE="/tmp/comfyui.pid"
 
 # Serve the API and don't shutdown the container
 if [ "$SERVE_API_LOCALLY" == "true" ]; then
-    python -u /comfyui/main.py --disable-auto-launch --disable-metadata --listen --verbose "${COMFY_LOG_LEVEL}" --log-stdout &
+    python -u /comfyui/main.py --cpu --disable-auto-launch --disable-metadata --listen --verbose "${COMFY_LOG_LEVEL}" --log-stdout &
     echo $! > "$COMFY_PID_FILE"
 
     echo "worker-comfyui: Starting RunPod Handler"
     python -u /handler.py --rp_serve_api --rp_api_host=0.0.0.0
 else
-    python -u /comfyui/main.py --disable-auto-launch --disable-metadata --verbose "${COMFY_LOG_LEVEL}" --log-stdout &
+    python -u /comfyui/main.py --cpu --disable-auto-launch --disable-metadata --verbose "${COMFY_LOG_LEVEL}" --log-stdout &
     echo $! > "$COMFY_PID_FILE"
 
     echo "worker-comfyui: Starting RunPod Handler"

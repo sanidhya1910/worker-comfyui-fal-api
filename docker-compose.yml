@@ -1,14 +1,11 @@
 services:
   comfyui-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: final
     image: runpod/worker-comfyui:dev
     pull_policy: never
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       - SERVE_API_LOCALLY=true
     ports:

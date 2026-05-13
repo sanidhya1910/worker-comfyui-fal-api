@@ -14,21 +14,13 @@ variable "COMFYUI_VERSION" {
   default = "latest"
 }
 
-# Global defaults for standard CUDA 12.6.3 images
+# Global defaults for CPU-only images
 variable "BASE_IMAGE" {
-  default = "nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04"
+  default = "ubuntu:24.04"
 }
 
-variable "CUDA_VERSION_FOR_COMFY" {
-  default = "12.6"
-}
-
-variable "ENABLE_PYTORCH_UPGRADE" {
-  default = "false"
-}
-
-variable "PYTORCH_INDEX_URL" {
-  default = ""
+variable "FAL_API_NODE_REPO" {
+  default = "https://github.com/gokayfem/ComfyUI-fal-API"
 }
 
 variable "HUGGINGFACE_ACCESS_TOKEN" {
@@ -36,7 +28,7 @@ variable "HUGGINGFACE_ACCESS_TOKEN" {
 }
 
 group "default" {
-  targets = ["base", "sdxl", "sd3", "flux1-schnell", "flux1-dev", "flux1-dev-fp8", "z-image-turbo", "base-cuda12-8-1"]
+  targets = ["base", "sdxl", "sd3", "flux1-schnell", "flux1-dev", "flux1-dev-fp8", "z-image-turbo"]
 }
 
 target "base" {
@@ -47,9 +39,7 @@ target "base" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "base"
   }
   tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-base"]
@@ -62,9 +52,7 @@ target "sdxl" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "sdxl"
   }
   tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-sdxl"]
@@ -78,9 +66,7 @@ target "sd3" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "sd3"
     HUGGINGFACE_ACCESS_TOKEN = "${HUGGINGFACE_ACCESS_TOKEN}"
   }
@@ -95,9 +81,7 @@ target "flux1-schnell" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "flux1-schnell"
     HUGGINGFACE_ACCESS_TOKEN = "${HUGGINGFACE_ACCESS_TOKEN}"
   }
@@ -112,9 +96,7 @@ target "flux1-dev" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "flux1-dev"
     HUGGINGFACE_ACCESS_TOKEN = "${HUGGINGFACE_ACCESS_TOKEN}"
   }
@@ -129,9 +111,7 @@ target "flux1-dev-fp8" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "flux1-dev-fp8"
   }
   tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-flux1-dev-fp8"]
@@ -145,29 +125,11 @@ target "z-image-turbo" {
   args = {
     BASE_IMAGE = "${BASE_IMAGE}"
     COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
-    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
-    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    FAL_API_NODE_REPO = "${FAL_API_NODE_REPO}"
     MODEL_TYPE = "z-image-turbo"
     HUGGINGFACE_ACCESS_TOKEN = "${HUGGINGFACE_ACCESS_TOKEN}"
   }
   tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-z-image-turbo"]
   inherits = ["base"]
-}
-
-target "base-cuda12-8-1" {
-  context = "."
-  dockerfile = "Dockerfile"
-  target = "base"
-  platforms = ["linux/amd64"]
-  args = {
-    BASE_IMAGE = "nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04"
-    COMFYUI_VERSION = "${COMFYUI_VERSION}"
-    CUDA_VERSION_FOR_COMFY = ""
-    ENABLE_PYTORCH_UPGRADE = "true"
-    PYTORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
-    MODEL_TYPE = "base"
-  }
-  tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-base-cuda12.8.1"]
 }
 

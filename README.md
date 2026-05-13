@@ -10,7 +10,7 @@
 
 ---
 
-This project allows you to run ComfyUI workflows as a serverless API endpoint on the RunPod platform. Submit workflows via API calls and receive generated images as base64 strings or S3 URLs.
+This project allows you to run ComfyUI workflows as a serverless API endpoint on the RunPod platform. Submit custom ComfyUI API-format workflows via API calls and receive generated images/videos as base64 strings or S3 URLs.
 
 ## Table of Contents
 
@@ -71,6 +71,12 @@ Use the `/runsync` endpoint for synchronous requests that wait for the job to co
         "name": "input_image_1.png",
         "image": "data:image/png;base64,iVBOR..."
       }
+    ],
+    "videos": [
+      {
+        "name": "input_video_1.mp4",
+        "video": "data:video/mp4;base64,AAAA..."
+      }
     ]
   }
 }
@@ -82,8 +88,9 @@ The following tables describe the fields within the `input` object:
 | ------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `input`                   | Object | Yes      | Top-level object containing request data.                                                                                                  |
 | `input.workflow`          | Object | Yes      | The ComfyUI workflow exported in the [required format](#getting-the-workflow-json).                                                        |
-| `input.images`            | Array  | No       | Optional array of input images. Each image is uploaded to ComfyUI's `input` directory and can be referenced by its `name` in the workflow. |
-| `input.comfy_org_api_key` | String | No       | Optional per-request Comfy.org API key for API Nodes. Overrides the `COMFY_ORG_API_KEY` environment variable if both are set.              |
+| `input.images`            | Array  | No       | Optional array of input images. Each image is uploaded to ComfyUI and can be referenced by its `name` in the workflow.                     |
+| `input.videos`            | Array  | No       | Optional array of input videos. Each video is placed into ComfyUI's input directory and can be referenced by its `name` in the workflow.    |
+| `input.comfy_org_api_key` | String | No       | Optional per-request Comfy.org API key for API Nodes. Overrides the `COMFY_ORG_API_KEY` environment variable if both are set.               |
 
 #### `input.images` Object
 
@@ -91,8 +98,17 @@ Each object within the `input.images` array must contain:
 
 | Field Name | Type   | Required | Description                                                                                                                       |
 | ---------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `name`     | String | Yes      | Filename used to reference the image in the workflow (e.g., via a "Load Image" node). Must be unique within the array.            |
-| `image`    | String | Yes      | Base64 encoded string of the image. A data URI prefix (e.g., `data:image/png;base64,`) is optional and will be handled correctly. |
+| `name`     | String | Yes      | Filename used to reference the image in the workflow (e.g., via a "Load Image" node). Must be unique within the array.             |
+| `image`    | String | Yes      | Base64 encoded string of the image. A data URI prefix (e.g., `data:image/png;base64,`) is optional and will be handled correctly.  |
+
+#### `input.videos` Object
+
+Each object within the `input.videos` array must contain:
+
+| Field Name | Type   | Required | Description                                                                                                                      |
+| ---------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `name`     | String | Yes      | Filename used to reference the video in the workflow (e.g., via a "Load Video" node). Must be unique within the array.       |
+| `video`    | String | Yes      | Base64 encoded string of the video. A data URI prefix (e.g., `data:video/mp4;base64,`) is optional and will be handled correctly. |
 
 > [!NOTE]
 >
@@ -118,6 +134,13 @@ Each object within the `input.images` array must contain:
         "type": "base64",
         "data": "iVBORw0KGgoAAAANSUhEUg..."
       }
+    ],
+    "videos": [
+      {
+        "filename": "ComfyUI_00001_.mp4",
+        "type": "base64",
+        "data": "AAAAIGZ0eXBpc29t..."
+      }
     ]
   },
   "delayTime": 123,
@@ -127,9 +150,10 @@ Each object within the `input.images` array must contain:
 
 | Field Path      | Type             | Required | Description                                                                                                 |
 | --------------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `output`        | Object           | Yes      | Top-level object containing the results of the job execution.                                               |
-| `output.images` | Array of Objects | No       | Present if the workflow generated images. Contains a list of objects, each representing one output image.   |
-| `output.errors` | Array of Strings | No       | Present if non-fatal errors or warnings occurred during processing (e.g., S3 upload failure, missing data). |
+| `output`        | Object           | Yes      | Top-level object containing the results of the job execution.                                                |
+| `output.images` | Array of Objects | No       | Present if the workflow generated images. Contains a list of objects, each representing one output image.    |
+| `output.videos` | Array of Objects | No       | Present if the workflow generated videos. Contains a list of objects, each representing one output video.    |
+| `output.errors` | Array of Strings | No       | Present if non-fatal errors or warnings occurred during processing (e.g., S3 upload failure, missing data).  |
 
 #### `output.images`
 
