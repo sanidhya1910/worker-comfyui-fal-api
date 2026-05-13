@@ -10,6 +10,8 @@
 - **No linter or formatter configured**: Follow PEP 8 by convention; there are no pre-commit hooks or CI lint checks.
 - **ComfyUI-Manager forced offline**: `start.sh` calls `comfy-manager-set-mode offline` on every boot. Custom nodes cannot be installed at runtime through the Manager UI — they must be baked into the Docker image.
 - **Network volume mount point**: Models on a network volume must match the directory structure in `src/extra_model_paths.yaml`. The volume is expected at `/runpod-volume` with a `comfyui/models/` subtree.
+- **Required user_id**: All job requests must include `input.user_id` (non-empty string). Handler rejects jobs without it. This is used for output organization in buckets as `users/{user_id}/jobs/{job_id}/...`.
+- **Fixed output structure**: When bucket upload is enabled, output files are stored at `users/{user_id}/jobs/{job_id}/output_{n}.{ext}` where `{n}` is a sequential counter per job. The `output_filename` parameter is no longer supported; all filenames follow this fixed pattern.
 
 ## Model type detection (for workflow parsing)
 

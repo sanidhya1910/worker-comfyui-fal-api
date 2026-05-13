@@ -6,8 +6,10 @@ This project includes GitHub Actions workflows to automatically build and deploy
 
 The repository contains two workflows located in the `.github/workflows` directory:
 
-- [`dev.yml`](../.github/workflows/dev.yml): Creates the images (base, sdxl, sd3, flux variants) and pushes them to Docker Hub tagged as `<image_name>:dev` on every push to the `main` branch.
-- [`release.yml`](../.github/workflows/release.yml): Creates the images and pushes them to Docker Hub tagged as `<image_name>:latest` and `<image_name>:<release_version>` (e.g., `worker-comfyui:3.7.0`). This workflow is triggered only when a new release is created on GitHub.
+- [`dev.yml`](../.github/workflows/dev.yml): Builds the CPU-only worker image and pushes it to Docker Hub tagged as `<image_name>:dev` on every push to the `main` branch.
+- [`release.yml`](../.github/workflows/release.yml): Builds the CPU-only worker image and pushes it to Docker Hub tagged as `<image_name>:latest` and `<image_name>:<release_version>` (e.g., `worker-comfyui:5.0.0`). This workflow is triggered only when a new release is created on GitHub.
+
+**Note:** There is a single CPU-only image variant. Models are not pre-packaged; they are provided via Network Volume or downloaded at runtime via custom nodes.
 
 ### Configuration for Your Fork
 
@@ -15,11 +17,10 @@ If you have forked this repository and want to use these actions to publish imag
 
 1.  **Secrets** (`Settings > Secrets and variables > Actions > New repository secret`):
 
-    | Secret Name                | Description                                                                | Example Value       |
-    | -------------------------- | -------------------------------------------------------------------------- | ------------------- |
-    | `DOCKERHUB_USERNAME`       | Your Docker Hub username.                                                  | `your-dockerhub-id` |
-    | `DOCKERHUB_TOKEN`          | Your Docker Hub access token with read/write permissions.                  | `dckr_pat_...`      |
-    | `HUGGINGFACE_ACCESS_TOKEN` | Your READ access token from Hugging Face (required only for building SD3). | `hf_...`            |
+    | Secret Name          | Description                                               | Example Value       |
+    | -------------------- | --------------------------------------------------------- | ------------------- |
+    | `DOCKERHUB_USERNAME` | Your Docker Hub username.                                 | `your-dockerhub-id` |
+    | `DOCKERHUB_TOKEN`    | Your Docker Hub access token with read/write permissions. | `dckr_pat_...`      |
 
 2.  **Variables** (`Settings > Secrets and variables > Actions > New repository variable`):
 

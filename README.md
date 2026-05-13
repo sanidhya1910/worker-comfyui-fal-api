@@ -10,14 +10,15 @@
 
 ---
 
-This project allows you to run ComfyUI workflows as a serverless API endpoint on the RunPod platform. Submit custom ComfyUI API-format workflows via API calls and receive generated images/videos as base64 strings or S3 URLs.
+This project allows you to run ComfyUI workflows as a serverless API endpoint on the RunPod platform. Submit custom ComfyUI API-format workflows via API calls and receive generated images/videos as base64 strings or S3-compatible bucket URLs (AWS S3, Cloudflare R2, etc.).
 
 ## Table of Contents
 
 - [Quickstart](#quickstart)
-- [Available Docker Images](#available-docker-images)
+- [Docker Image](#docker-image)
 - [API Specification](#api-specification)
 - [Usage](#usage)
+- [Environment Variables](#environment-variables)
 - [Getting the Workflow JSON](#getting-the-workflow-json)
 - [Further Documentation](#further-documentation)
 
@@ -25,27 +26,23 @@ This project allows you to run ComfyUI workflows as a serverless API endpoint on
 
 ## Quickstart
 
-1.  🐳 Choose one of the [available Docker images](#available-docker-images) for your serverless endpoint (e.g., `runpod/worker-comfyui:<version>-sd3`).
+1.  🐳 Deploy the [CPU-only ComfyUI worker image](#docker-image) to your RunPod endpoint.
 2.  📄 Follow the [Deployment Guide](docs/deployment.md) to set up your RunPod template and endpoint.
-3.  ⚙️ Optionally configure the worker (e.g., for S3 upload) using environment variables - see the full [Configuration Guide](docs/configuration.md).
-4.  🧪 Pick an example workflow from [`test_resources/workflows/`](./test_resources/workflows/) or [get your own](#getting-the-workflow-json).
+3.  ⚙️ Optionally configure the worker (e.g., for bucket uploads, FAL API, custom nodes) using [environment variables](#environment-variables).
+4.  🧪 Pick an example workflow from [`test_resources/workflows/`](./test_resources/workflows/) or [create your own](#getting-the-workflow-json).
 5.  🚀 Follow the [Usage](#usage) steps below to interact with your deployed endpoint.
 
-## Available Docker Images
+## Docker Image
 
-These images are available on Docker Hub under `runpod/worker-comfyui`:
+This project provides a **CPU-only** ComfyUI worker image. No GPU or CUDA is required.
 
-- **`runpod/worker-comfyui:<version>-base`**: Clean ComfyUI install with no models.
-- **`runpod/worker-comfyui:<version>-flux1-schnell`**: Includes checkpoint, text encoders, and VAE for [FLUX.1 schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell).
-- **`runpod/worker-comfyui:<version>-flux1-dev`**: Includes checkpoint, text encoders, and VAE for [FLUX.1 dev](https://huggingface.co/black-forest-labs/FLUX.1-dev).
-- **`runpod/worker-comfyui:<version>-sdxl`**: Includes checkpoint and VAEs for [Stable Diffusion XL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0).
-- **`runpod/worker-comfyui:<version>-sd3`**: Includes checkpoint for [Stable Diffusion 3 medium](https://huggingface.co/stabilityai/stable-diffusion-3-medium).
+- **`worker-comfyui:latest`**: CPU-only ComfyUI with no pre-downloaded models. Models must be provided via network volume or downloaded at runtime via custom nodes.
 
-Replace `<version>` with the current release tag, check the [releases page](https://github.com/runpod-workers/worker-comfyui/releases) for the latest version.
+For details on customizing or building your own image, see the [Customization Guide](docs/customization.md).
 
 ## API Specification
 
-The worker exposes standard RunPod serverless endpoints (`/run`, `/runsync`, `/health`). By default, images are returned as base64 strings. You can configure the worker to upload images to an S3 bucket instead by setting specific environment variables (see [Configuration Guide](docs/configuration.md)).
+The worker exposes standard RunPod serverless endpoints (`/run`, `/runsync`, `/health`). By default, images/videos are returned as base64 strings. You can configure the worker to upload outputs to an S3-compatible bucket (AWS S3, Cloudflare R2, etc.) and manage other behaviors via environment variables (see [Environment Variables](#environment-variables) below or the full [Configuration Guide](docs/configuration.md)).
 
 Use the `/runsync` endpoint for synchronous requests that wait for the job to complete and return the result directly. Use the `/run` endpoint for asynchronous requests that return immediately with a job ID; you'll need to poll the `/status` endpoint separately to get the result.
 
@@ -54,6 +51,7 @@ Use the `/runsync` endpoint for synchronous requests that wait for the job to co
 ```json
 {
   "input": {
+    "user_id": "alice",
     "workflow": {
       "6": {
         "inputs": {
@@ -87,6 +85,7 @@ The following tables describe the fields within the `input` object:
 | Field Path                | Type   | Required | Description                                                                                                                                |
 | ------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `input`                   | Object | Yes      | Top-level object containing request data.                                                                                                  |
+| `input.user_id`           | String | Yes      | Unique identifier for the user submitting the job. Used for organizing outputs in the bucket as `users/{user_id}/jobs/{job_id}/...`.      |
 | `input.workflow`          | Object | Yes      | The ComfyUI workflow exported in the [required format](#getting-the-workflow-json).                                                        |
 | `input.images`            | Array  | No       | Optional array of input images. Each image is uploaded to ComfyUI and can be referenced by its `name` in the workflow.                     |
 | `input.videos`            | Array  | No       | Optional array of input videos. Each video is placed into ComfyUI's input directory and can be referenced by its `name` in the workflow.    |
@@ -113,6 +112,48 @@ Each object within the `input.videos` array must contain:
 > [!NOTE]
 >
 > **Size Limits:** RunPod endpoints have request size limits (e.g., 10MB for `/run`, 20MB for `/runsync`). Large base64 input images can exceed these limits. See [RunPod Docs](https://docs.runpod.io/docs/serverless-endpoint-urls).
+
+## Environment Variables
+
+Configure the worker behavior using environment variables. For comprehensive details, see the [Configuration Guide](docs/configuration.md).
+
+### General Configuration
+
+| Variable | Description | Default |
+| -------- | ----------- | ------- |
+| `REFRESH_WORKER` | When `true`, worker stops after each job for a clean state. See [RunPod docs](https://docs.runpod.io/docs/handler-additional-controls#refresh-worker). | `false` |
+| `SERVE_API_LOCALLY` | When `true`, enables local HTTP server simulating RunPod environment for development/testing. | `false` |
+| `COMFY_ORG_API_KEY` | Comfy.org API key for ComfyUI API Nodes. Clients can override per-request via `input.comfy_org_api_key`. | – |
+
+### FAL API Integration
+
+| Variable | Description | Default |
+| -------- | ----------- | ------- |
+| `FAL_KEY` | fal.ai API key for `ComfyUI-fal-API` custom node. Auto-writes to node config on container start. | – |
+| `FAL_API_KEY` | Alias for `FAL_KEY` (use only if `FAL_KEY` not set). | – |
+
+### Bucket Upload (S3-Compatible)
+
+Enable direct upload of generated outputs to AWS S3, Cloudflare R2, or other S3-compatible storage.
+
+| Variable | Description | Example |
+| -------- | ----------- | ------- |
+| `BUCKET_ENDPOINT_URL` | S3-compatible endpoint URL. **Must be set to enable uploads.** | `https://<accountid>.r2.cloudflarestorage.com` (R2) or `https://s3.<region>.amazonaws.com` (AWS) |
+| `BUCKET_NAME` | Bucket name to upload to. Required if `BUCKET_ENDPOINT_URL` is set. | `my-bucket` |
+| `BUCKET_ACCESS_KEY_ID` | Access key ID for bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE` |
+| `BUCKET_SECRET_ACCESS_KEY` | Secret access key for bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `wJalrXUtnFEMI/K7MDENG/...` |
+
+**Output Structure:** Files are stored as `users/{user_id}/jobs/{job_id}/output_{n}.{ext}` where `{n}` is a sequential counter. See [Configuration Guide](docs/configuration.md#output-file-structure) for details.
+
+### Logging & Debugging
+
+| Variable | Description | Default |
+| -------- | ----------- | ------- |
+| `COMFY_LOG_LEVEL` | ComfyUI logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. | `DEBUG` |
+| `NETWORK_VOLUME_DEBUG` | Enable detailed network volume diagnostics. Useful for debugging model paths. | `false` |
+| `WEBSOCKET_RECONNECT_ATTEMPTS` | WebSocket reconnection attempts if connection drops. | `5` |
+| `WEBSOCKET_RECONNECT_DELAY_S` | Delay (seconds) between reconnection attempts. | `3` |
+| `WEBSOCKET_TRACE` | Enable low-level WebSocket frame tracing (protocol debugging only). | `false` |
 
 ### Output
 
@@ -162,15 +203,14 @@ Each object in the `output.images` array has the following structure:
 | Field Name | Type   | Description                                                                                     |
 | ---------- | ------ | ----------------------------------------------------------------------------------------------- |
 | `filename` | String | The original filename assigned by ComfyUI during generation.                                    |
-| `type`     | String | Indicates the format of the data. Either `"base64"` or `"s3_url"` (if S3 upload is configured). |
-| `data`     | String | Contains either the base64 encoded image string or the S3 URL for the uploaded image file.      |
+| `type`     | String | Indicates the format of the data. Either `"base64"` or `"s3_url"` (if bucket upload is configured). |
+| `data`     | String | Contains either the base64 encoded image string or the bucket URL for the uploaded image file.      |
 
 > [!NOTE]
 > The `output.images` field provides a list of all generated images (excluding temporary ones).
 >
-> - If S3 upload is **not** configured (default), `type` will be `"base64"` and `data` will contain the base64 encoded image string.
-> - If S3 upload **is** configured, `type` will be `"s3_url"` and `data` will contain the S3 URL. See the [Configuration Guide](docs/configuration.md#example-s3-response) for an S3 example response.
-> - Clients interacting with the API need to handle this list-based structure under `output.images`.
+> - If bucket upload is **not** configured (default), `type` will be `"base64"` and `data` will contain the base64 encoded image string.
+> - If bucket upload **is** configured (S3, Cloudflare R2, etc.), `type` will be `"s3_url"` and `data` will contain the bucket URL. Files are stored at `users/{user_id}/jobs/{job_id}/output_{n}.{ext}`. See the [Configuration Guide](docs/configuration.md#output-file-structure) for details.
 
 ## Usage
 
@@ -187,7 +227,7 @@ Send a workflow to the `/runsync` endpoint (waits for completion). Replace `<api
 curl -X POST \
   -H "Authorization: Bearer <api_key>" \
   -H "Content-Type: application/json" \
-  -d '{"input":{"workflow":{... your workflow JSON ...}}}' \
+  -d '{"input":{"user_id":"alice","workflow":{... your workflow JSON ...}}}' \
   https://api.runpod.ai/v2/<endpoint_id>/runsync
 ```
 

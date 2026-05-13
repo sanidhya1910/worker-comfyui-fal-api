@@ -15,28 +15,38 @@ RUNPOD_WORKER_COMFY_TEST_RESOURCES_IMAGES = "./test_resources/images"
 
 class TestRunpodWorkerComfy(unittest.TestCase):
     def test_valid_input_with_workflow_only(self):
-        input_data = {"workflow": {"key": "value"}}
+        input_data = {"user_id": "test-user", "workflow": {"key": "value"}}
         validated_data, error = handler.validate_input(input_data)
         self.assertIsNone(error)
-        self.assertEqual(validated_data, {"workflow": {"key": "value"}, "images": None})
+        self.assertIn("user_id", validated_data)
+        self.assertEqual(validated_data["user_id"], "test-user")
 
     def test_valid_input_with_workflow_and_images(self):
         input_data = {
+            "user_id": "test-user",
             "workflow": {"key": "value"},
             "images": [{"name": "image1.png", "image": "base64string"}],
         }
         validated_data, error = handler.validate_input(input_data)
         self.assertIsNone(error)
-        self.assertEqual(validated_data, input_data)
+        self.assertIn("user_id", validated_data)
+        self.assertEqual(validated_data["user_id"], "test-user")
 
     def test_input_missing_workflow(self):
-        input_data = {"images": [{"name": "image1.png", "image": "base64string"}]}
+        input_data = {"user_id": "test-user", "images": [{"name": "image1.png", "image": "base64string"}]}
         validated_data, error = handler.validate_input(input_data)
         self.assertIsNotNone(error)
         self.assertEqual(error, "Missing 'workflow' parameter")
 
+    def test_input_missing_user_id(self):
+        input_data = {"workflow": {"key": "value"}}
+        validated_data, error = handler.validate_input(input_data)
+        self.assertIsNotNone(error)
+        self.assertEqual(error, "Missing required 'user_id' parameter")
+
     def test_input_with_invalid_images_structure(self):
         input_data = {
+            "user_id": "test-user",
             "workflow": {"key": "value"},
             "images": [{"name": "image1.png"}],  # Missing 'image' key
         }

@@ -1,3 +1,28 @@
+# Unreleased
+
+## Major Changes
+
+- **CPU-only worker option**: Added CPU-exclusive configuration (no CUDA/GPU required). ComfyUI installs with `--cpu` flag; models on network volumes; smaller base image (ubuntu:24.04).
+- **FAL API integration**: Integrated `ComfyUI-fal-API` custom node for video/image upload via fal.ai. Auto-configures from `FAL_KEY` environment variable on container start.
+- **Art-venture custom node**: Added `comfyui-art-venture` for image-from-URL loading capability.
+- **Required user_id**: All jobs must include `input.user_id` (non-empty string) for user identification and output organization.
+- **Fixed output structure**: Generated files stored as `users/{user_id}/jobs/{job_id}/output_{n}.{ext}` with sequential numbering.
+- **S3-compatible bucket uploads**: Direct upload to AWS S3, Cloudflare R2, or other S3-compatible endpoints using boto3; environment variables: `BUCKET_ENDPOINT_URL`, `BUCKET_NAME`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`.
+- **Video input/output parity**: Handler now accepts `input.videos` and returns `output.videos` in the same structure as images.
+
+### Breaking Changes
+
+- **`input.user_id` now required**: Jobs without `user_id` will be rejected with error message "Missing required 'user_id' parameter".
+- **Removed `output_filename` templating**: Output filenames now follow fixed structure; `output_filename` parameter no longer supported.
+
+### Dependencies
+
+- Added `boto3` to requirements for S3-compatible bucket operations.
+- `comfyui-art-venture` custom node installed in image at build time.
+- `ComfyUI-fal-API` custom node installed in image at build time; requires `FAL_KEY` env var for operation.
+
+---
+
 # [5.3.0](https://github.com/runpod-workers/worker-comfyui/compare/5.2.0...5.3.0) (2025-07-22)
 
 ## 5.8.5

@@ -217,12 +217,18 @@ def validate_input(job_input):
                 "'videos' must be a list of objects with 'name' and 'video' keys",
             )
 
+    # Validate 'user_id' - required for output path structure
+    user_id = job_input.get("user_id")
+    if not user_id:
+        return None, "Missing required 'user_id' parameter"
+    if not isinstance(user_id, str) or not user_id.strip():
+        return None, "'user_id' must be a non-empty string"
+
     # Optional: API key for Comfy.org API Nodes, passed per-request
     comfy_org_api_key = job_input.get("comfy_org_api_key")
 
-    # Optional filename templating and user id for output renaming
+    # Optional filename templating
     output_filename = job_input.get("output_filename")
-    user_id = job_input.get("user_id")
 
     # Return validated data and no error
     return {
@@ -903,6 +909,7 @@ def handler(job):
                 errors.append(warning_msg)
 
         print(f"worker-comfyui - Processing {len(outputs)} output nodes...")
+        output_counter = 0  # Track output index for structured naming
         for node_id, node_output in outputs.items():
             # Node keys commonly used by ComfyUI/video custom nodes
             media_output_key_map = {
@@ -949,6 +956,7 @@ def handler(job):
                     )
 
                     if os.environ.get("BUCKET_ENDPOINT_URL"):
+                        output_counter += 1
                         temp_file_path = None
                         try:
                             with tempfile.NamedTemporaryFile(
@@ -957,23 +965,9 @@ def handler(job):
                                 temp_file.write(media_bytes)
                                 temp_file_path = temp_file.name
 
-                            # Determine destination key/name
-                            output_filename_template = validated_data.get("output_filename")
+                            # Determine destination key/name using structured path: users/{uid}/jobs/{job_id}/output_{n}.{ext}
                             user_id_val = validated_data.get("user_id")
-
-                            if output_filename_template:
-                                dest_name = output_filename_template
-                                # support simple placeholders {user_id} and {req_id}
-                                dest_name = dest_name.replace("{user_id}", user_id_val or "")
-                                dest_name = dest_name.replace("{req_id}", job_id)
-                                if not os.path.splitext(dest_name)[1]:
-                                    dest_name = dest_name + file_extension
-                            else:
-                                if user_id_val:
-                                    dest_name = f"{user_id_val}{job_id}{file_extension}"
-                                else:
-                                    # fallback: keep some structure
-                                    dest_name = f"{job_id}/{filename}"
+                            dest_name = f"users/{user_id_val}/jobs/{job_id}/output_{output_counter}{file_extension}"
 
                             try:
                                 s3_url = upload_file_to_bucket(temp_file_path, dest_name)
@@ -1031,6 +1025,7 @@ def handler(job):
                             )
                             print(f"worker-comfyui - {error_msg}")
                             errors.append(error_msg)
+                            continue
 
             # Check for other output types
             known_keys = set(media_output_key_map.keys())

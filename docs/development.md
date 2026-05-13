@@ -4,6 +4,10 @@ This guide covers setting up your local environment for developing and testing t
 
 Both tests will use the data from [`test_input.json`](../test_input.json), so make your changes in there to test different workflow inputs properly.
 
+> [!IMPORTANT]
+>
+> **Required field:** `test_input.json` must include `"user_id"` in the `input` object. All handler requests require this field for output organization and user identification. Example: `"user_id": "test-user"`
+
 ## Setup
 
 ### Prerequisites
@@ -39,9 +43,9 @@ Both tests will use the data from [`test_input.json`](../test_input.json), so ma
 
 ### Setup for Windows (using WSL2)
 
-Running Docker with GPU acceleration on Windows typically requires WSL2 (Windows Subsystem for Linux).
+Since this is a CPU-only worker, you can run Docker normally on Windows without GPU-specific configuration. However, WSL2 is still recommended for consistency.
 
-1.  **Install WSL2 and a Linux distribution** (like Ubuntu) following [Microsoft's official guide](https://learn.microsoft.com/en-us/windows/wsl/install). You generally don't need the GUI support for this.
+1.  **Install WSL2 and a Linux distribution** (like Ubuntu) following [Microsoft's official guide](https://learn.microsoft.com/en-us/windows/wsl/install).
 2.  **Open your Linux distribution's terminal** (e.g., open Ubuntu from the Start menu or type `wsl` in Command Prompt/PowerShell).
 3.  **Update packages** inside WSL:
     ```bash
@@ -55,18 +59,12 @@ Running Docker with GPU acceleration on Windows typically requires WSL2 (Windows
     sudo apt-get update
     sudo apt-get install docker-compose-plugin # Or use the standalone binary method if preferred
     ```
-6.  **Install NVIDIA Container Toolkit in WSL**:
-    - Follow the [NVIDIA Container Toolkit installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), ensuring you select the correct steps for your Linux distribution running inside WSL.
-    - Configure Docker to use the NVIDIA runtime as default if desired, or specify it when running containers.
-7.  **Enable GPU Acceleration in WSL**:
-    - Ensure you have the latest NVIDIA drivers installed on your Windows host machine.
-    - Follow the [NVIDIA guide for CUDA on WSL](https://docs.nvidia.com/cuda/wsl-user-guide/index.html).
 
-After completing these steps, you should be able to run Docker commands, including `docker-compose`, from within your WSL terminal with GPU access.
+After completing these steps, you should be able to run Docker commands, including `docker-compose`, from within your WSL terminal.
 
 > [!NOTE]
 >
-> - It is generally recommended to run the Docker commands (`docker build`, `docker-compose up`) from within the WSL environment terminal for consistency with the Linux-based container environment.
+> - It is generally recommended to run Docker commands (`docker build`, `docker-compose up`) from within the WSL environment terminal for consistency with the Linux-based container environment.
 > - Accessing `localhost` URLs (like the local API or ComfyUI) from your Windows browser while the service runs inside WSL usually works, but network configurations can sometimes cause issues.
 
 ## Testing the RunPod Handler
@@ -97,7 +95,7 @@ For enhanced local development and end-to-end testing, you can start a local env
 
 > [!IMPORTANT]
 >
-> - This currently requires an **NVIDIA GPU** and correctly configured drivers + NVIDIA Container Toolkit (see Windows setup above if applicable).
+> - This is a **CPU-only worker** — no GPU or special hardware is required.
 > - Ensure Docker is running.
 
 **Steps:**

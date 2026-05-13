@@ -1,6 +1,6 @@
 # Introduction
 
-This project (`worker-comfyui`) provides a way to run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as a serverless API worker on the [RunPod](https://www.runpod.io/) platform. Its main purpose is to allow users to submit ComfyUI image generation workflows via a simple API call and receive the resulting images, either directly as base64-encoded strings or via an upload to an AWS S3 bucket.
+This project (`worker-comfyui`) provides a way to run [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as a serverless API worker on the [RunPod](https://www.runpod.io/) platform. Its main purpose is to allow users to submit ComfyUI workflows via a simple API call and receive the resulting images and videos, either directly as base64-encoded strings or via an upload to an S3-compatible bucket (AWS S3, Cloudflare R2, etc.).
 
 It packages ComfyUI into Docker images, manages job handling via the `runpod` SDK, uses websockets for efficient communication with ComfyUI, and facilitates configuration through environment variables.
 
@@ -21,18 +21,18 @@ This document outlines the key operational and structural conventions for the `w
   # Example build command
   docker build --platform linux/amd64 -t my-image:tag .
   ```
-- **Development Builds:** For faster development iterations, use `MODEL_TYPE=base` to skip downloading external models:
-  ```bash
-  docker build --build-arg MODEL_TYPE=base -t runpod/worker-comfyui:dev .
-  ```
-- **Customization:** Follow the methods in the `README.md` for adding custom models/nodes (Network Volume or Dockerfile edits + snapshots).
+- **Customization:** Follow the methods in the [README.md](../README.md) for adding custom nodes or providing models via Network Volume.
 
 ## 3. API Interaction
 
-- **Input Structure:** API calls to the `/run` or `/runsync` endpoints must adhere to the JSON structure specified in the `README.md` ("API specification"). The primary key is `input`, containing `workflow` (mandatory object) and `images` (optional array).
+- **Input Structure:** API calls to the `/run` or `/runsync` endpoints must adhere to the JSON structure specified in the `README.md` ("API specification"). The primary keys are:
+  - `user_id` (string, **required**): Unique identifier for the requesting user; used for output organization and bucket paths (`users/{user_id}/jobs/{job_id}/...`).
+  - `workflow` (object, **required**): The ComfyUI workflow to execute.
+  - `images` (array, optional): Input images to be used by the workflow.
+  - `videos` (array, optional): Input videos to be used by the workflow.
 - **Image Encoding:** Input images provided in the `input.images` array must be base64 encoded strings (optionally including a `data:[<mediatype>];base64,` prefix).
 - **Workflow Format:** The `input.workflow` object should contain the JSON exported from ComfyUI using the "Save (API Format)" option (requires enabling "Dev mode Options" in ComfyUI settings).
-- **Output Structure:** Successful responses contain an `output.images` field, which is a **list of dictionaries**. Each dictionary includes `filename` (string), `type` (`"s3_url"` or `"base64"`), and `data` (string containing the URL or base64 data). Refer to the `README.md` API examples for the exact structure.
+- **Output Structure:** Successful responses contain an `output.images` and/or `output.videos` fields, which are **lists of dictionaries**. Each dictionary includes `filename` (string), `type` (`"s3_url"` or `"base64"`), and `data` (string containing the URL or base64 data). When bucket upload is enabled, files are stored at `users/{user_id}/jobs/{job_id}/output_{n}.{ext}` where `{n}` is a sequential counter per job. Refer to the `README.md` API examples and [Configuration Guide](configuration.md#output-file-structure) for the exact structure.
 - **Internal Communication:** Job status monitoring uses the ComfyUI websocket API instead of HTTP polling for efficiency.
 
 ## 4. Error Handling
@@ -47,7 +47,6 @@ This document outlines the key operational and structural conventions for the `w
 - **Code Changes:** After modifying handler code, always rebuild the Docker image before testing with `docker-compose`:
   ```bash
   docker-compose down
-  docker build --build-arg MODEL_TYPE=base -t runpod/worker-comfyui:dev .
   docker-compose up -d
   ```
 - **Debugging:** Use strategic logging/print statements to understand external API responses (like ComfyUI's error formats) before implementing error handling.
@@ -56,7 +55,7 @@ This document outlines the key operational and structural conventions for the `w
 ## 6. Testing
 
 - **Unit Tests:** Automated tests are located in the `tests/` directory and should be run using `python -m unittest discover`. Add new tests for new functionality or bug fixes.
-- **Local Environment:** Use `docker-compose up` for local end-to-end testing. This requires a correctly configured Docker environment with NVIDIA GPU support.
+- **Local Environment:** Use `docker-compose up` for local end-to-end testing. This is a CPU-only image, so no special GPU configuration is required.
 
 ## 7. Dependencies
 
@@ -68,18 +67,7 @@ This document outlines the key operational and structural conventions for the `w
 - Use meaningful variable and function names.
 - Add comments where the logic is non-obvious.
 
-### **Model Type Detection**
-
-Models are categorized based on node types using these mappings:
-
-- `UpscaleModelLoader` → `upscale_models`
-- `VAELoader` → `vae`
-- `UNETLoader`, `UnetLoaderGGUF`, `Hy3DModelLoader` → `diffusion_models`
-- `DualCLIPLoader`, `TripleCLIPLoader` → `text_encoders`
-- `LoraLoader` → `loras`
-- And additional specialized loaders for proper model categorization
-
-## Custom Node Dependencies
+## 9. Custom Node Dependencies
 
 When extending the base image with custom nodes, some nodes may require specific dependency versions to function correctly.
 

@@ -1,6 +1,5 @@
 {
-  "input": {
-    "images": [
+  "input": {    "user_id": "test-user",    "images": [
       {
         "name": "test.png",
         "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAMklEQVR4nGI5ZdXAQEvARFPTRy0YtWDUglELRi0YtWDUglELRi0YtWDUAioCQAAAAP//E24Bx3jUKuYAAAAASUVORK5CYII="

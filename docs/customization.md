@@ -1,21 +1,19 @@
 # Customization
 
-This guide covers methods for adding your own models, custom nodes, and static input files into a custom `worker-comfyui`.
+This guide covers methods for extending the CPU-only `worker-comfyui` with custom nodes, models, and static input files.
 
-> [!TIP]
+> [!IMPORTANT]
 >
-> **Looking for the easiest way to deploy custom workflows?**
->
-> [ComfyUI-to-API](https://comfy.getrunpod.io) automatically generates a custom Dockerfile and GitHub repository from your ComfyUI workflow, eliminating the manual setup described below. See the [ComfyUI-to-API Documentation](https://docs.runpod.io/community-solutions/comfyui-to-api/overview) for details.
->
-> Use the manual methods below only if you need fine-grained control or prefer to manage everything yourself.
+> **Models are not included in the base image.** This is a CPU-only worker with no pre-downloaded models. You must:
+> - Provide models via a **Network Volume** attached to your endpoint, or
+> - Download models **at runtime** using custom nodes (e.g., `ComfyUI-fal-API` for remote model URLs)
 
 ---
 
-There are two primary methods for **manual** customization:
+There are two primary methods for customization:
 
-1.  **Custom Dockerfile (recommended for manual setup):** Create your own `Dockerfile` starting `FROM` one of the official `worker-comfyui` base images. This allows you to bake specific custom nodes, models, and input files directly into your image using `comfy-cli` commands. **This method does not require forking the `worker-comfyui` repository.**
-2.  **Network Volume:** Store models on a persistent network volume attached to your RunPod endpoint. This is useful if you frequently change models or have very large models you don't want to include in the image build process.
+1.  **Custom Dockerfile (recommended):** Create your own `Dockerfile` starting from the CPU base image. This allows you to add custom nodes and configure your environment reproducibly. **This method does not require forking the `worker-comfyui` repository.**
+2.  **Network Volume:** Store models on a persistent network volume attached to your RunPod endpoint. This is useful for large models or when you frequently change models.
 
 ## Method 1: Custom Dockerfile
 
@@ -23,27 +21,36 @@ There are two primary methods for **manual** customization:
 >
 > This method does NOT require forking the `worker-comfyui` repository.
 
-This is the most flexible and recommended approach for creating reproducible, customized worker environments.
+This is the most flexible approach for creating reproducible, customized worker environments.
 
 1.  **Create a `Dockerfile`:** In your own project directory, create a file named `Dockerfile`.
-2.  **Start with a Base Image:** Begin your `Dockerfile` by referencing one of the official base images. Using the `-base` tag is recommended as it provides a clean ComfyUI install with necessary tools like `comfy-cli` but without pre-packaged models.
+2.  **Start with a Base Image:** Begin your `Dockerfile` by referencing the CPU base image.
     ```Dockerfile
-    # start from a clean base image (replace <version> with the desired [release](https://github.com/runpod-workers/worker-comfyui/releases))
-    FROM runpod/worker-comfyui:<version>-base
+    # Start from the CPU-only base image
+    FROM worker-comfyui:latest
     ```
-3.  **Install Custom Nodes:** Use the `comfy-node-install` (we had introduce our own cli tool here, as there is a [problem with comfy-cli not showing errors during installation](https://github.com/Comfy-Org/comfy-cli/pull/275)) command to add custom nodes by their name or URL, see [Comfy Registry](https://registry.comfy.org) to find the correct name. You can list multiple nodes.
+3.  **Install Custom Nodes:** Use the `comfy-node-install` command to add custom nodes by their name or URL. See [Comfy Registry](https://registry.comfy.org) to find the correct name.
     ```Dockerfile
-    # install custom nodes using comfy-cli
+    # Install custom nodes (example)
     RUN comfy-node-install comfyui-kjnodes comfyui-ic-light
     ```
-4.  **Download Models:** Use the `comfy model download` command to fetch models and place them in the correct ComfyUI directories.
+    
+    **Pre-built custom nodes already included in the base image:**
+    - `ComfyUI-fal-API`: Video/image upload via fal.ai; auto-configured from `FAL_KEY` environment variable.
+    - `comfyui-art-venture`: Image loading from URLs (useful for Cloudflare R2 or remote model hosting).
 
-    ```Dockerfile
-    # download models using comfy-cli
-    RUN comfy model download --url https://huggingface.co/KamCastle/jugg/resolve/main/juggernaut_reborn.safetensors --relative-path models/checkpoints --filename juggernaut_reborn.safetensors
-    ```
+4.  **Add Static Input Files (Optional):** If your workflows consistently require specific input images, masks, etc., you can copy them into the image:
 
-> [!NOTE]
+   - Create an `input/` directory next to your `Dockerfile`.
+   - Place your static files inside this `input/` directory.
+   - Add a `COPY` command to your `Dockerfile`:
+
+     ```Dockerfile
+     # Copy local static input files into ComfyUI's input directory
+     COPY input/ /comfyui/input/
+     ```
+
+   - These files can be referenced in your workflow using a "Load Image" node (e.g., `my_static_image.png`).
 >
 > Ensure you use the correct `--relative-path` corresponding to ComfyUI's model directory structure (starting with `models/<folder>`):
 >
@@ -62,35 +69,29 @@ This is the most flexible and recommended approach for creating reproducible, cu
 
 - These files can then be referenced in your workflow using a "Load Image" (or similar) node pointing to the filename (e.g.,`my_static_image.png`).
 
-Once you have created your custom `Dockerfile`, refer to the [Deployment Guide](deployment.md#deploying-custom-setups) for instructions on how to build, push and deploy your custom image to RunPod.
+Once you have created your custom `Dockerfile`, refer to the [Deployment Guide](deployment.md#deploying-custom-setups) for instructions on how to build, push, and deploy your custom image to RunPod.
 
-### Complete Custom `Dockerfile` Example
+### Example Custom `Dockerfile`
 
 ```Dockerfile
-# start from a clean base image (replace <version> with the desired release)
-FROM runpod/worker-comfyui:5.1.0-base
+# Start from the CPU-only base image
+FROM worker-comfyui:latest
 
-# install custom nodes using comfy-cli
-RUN comfy-node-install comfyui-kjnodes comfyui-ic-light comfyui_ipadapter_plus comfyui_essentials ComfyUI-Hangover-Nodes
+# Install custom nodes
+RUN comfy-node-install comfyui-kjnodes comfyui-ic-light
 
-# download models using comfy-cli
-# the "--filename" is what you use in your ComfyUI workflow
-RUN comfy model download --url https://huggingface.co/KamCastle/jugg/resolve/main/juggernaut_reborn.safetensors --relative-path models/checkpoints --filename juggernaut_reborn.safetensors
-RUN comfy model download --url https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus_sd15.bin --relative-path models/ipadapter --filename ip-adapter-plus_sd15.bin
-RUN comfy model download --url https://huggingface.co/shiertier/clip_vision/resolve/main/SD15/model.safetensors --relative-path models/clip_vision --filename models.safetensors
-RUN comfy model download --url https://huggingface.co/lllyasviel/ic-light/resolve/main/iclight_sd15_fcon.safetensors --relative-path models/diffusion_models --filename iclight_sd15_fcon.safetensors
-
-# Copy local static input files into the ComfyUI input directory (delete if not needed)
-# Assumes you have an 'input' folder next to your Dockerfile
+# Copy local static input files into ComfyUI's input directory
+# (Optional - only if you have an 'input' folder next to your Dockerfile)
 COPY input/ /comfyui/input/
 ```
 
-## Method 2: Network Volume
+## Method 2: Network Volume (for Models)
 
-Using a Network Volume is primarily useful if you want to manage **models** separately from your worker image, especially if they are large or change often.
+Since this is a **CPU-only worker with no pre-downloaded models**, the Network Volume method is the recommended way to provide models to your workflows.
 
 1.  **Create a Network Volume**:
     - Follow the [RunPod Network Volumes guide](https://docs.runpod.io/pods/storage/create-network-volumes) to create a volume in the same region as your endpoint.
+
 2.  **Populate the Volume with Models**:
     - Use one of the methods described in the RunPod guide (e.g., temporary Pod + `wget`, direct upload, or the S3-compatible API) to place your model files into the correct ComfyUI directory structure **within the volume**.
     - For **serverless endpoints**, the network volume is mounted at `/runpod-volume`, and ComfyUI expects models under `/runpod-volume/models/...`. See [Network Volumes & Model Paths](network-volumes.md) for the exact structure and debugging tips.
@@ -100,13 +101,14 @@ Using a Network Volume is primarily useful if you want to manage **models** sepa
       # /runpod-volume/models/loras/your_lora.pt
       # /runpod-volume/models/vae/your_vae.safetensors
       ```
-    - **Important:** Ensure models are placed in the correct subdirectories (e.g., checkpoints in `models/checkpoints`, LoRAs in `models/loras`). If models are not detected, enable `NETWORK_VOLUME_DEBUG` as described in [Network Volumes & Model Paths](network-volumes.md).
+    - **Important:** Ensure models are placed in the correct subdirectories (e.g., checkpoints in `models/checkpoints`, LoRAs in `models/loras`). If models are not detected, enable `NETWORK_VOLUME_DEBUG=true` as described in [Network Volumes & Model Paths](network-volumes.md) and the [README Environment Variables](../README.md#logging--debugging).
+
 3.  **Configure Your Endpoint**:
     - Use the Network Volume in your endpoint configuration:
-      - Either create a new endpoint or update an existing one (see [Deployment Guide](deployment.md)).
-      - In the endpoint configuration, under `Advanced > Select Network Volume`, select your Network Volume.
+      - When creating or updating your endpoint (see [Deployment Guide](deployment.md)), under `Advanced > Select Network Volume`, select your Network Volume.
+      - ComfyUI will automatically detect models from the standard directories (`/runpod-volume/models/...`) within that volume.
 
 > [!NOTE]
 >
-> - When a Network Volume is correctly attached, ComfyUI running inside the worker container will automatically detect and load models from the standard directories (`/runpod-volume/models/...`) within that volume (for serverless workers). For directory mapping details and troubleshooting, see [Network Volumes & Model Paths](network-volumes.md).
-> - This method is **not suitable for installing custom nodes**; use the Custom Dockerfile method for that.
+> - Network Volume is the ideal method for managing large models separately from your worker image. This avoids rebuilding the Docker image whenever you update models.
+> - For directory mapping details and troubleshooting, see [Network Volumes & Model Paths](network-volumes.md).

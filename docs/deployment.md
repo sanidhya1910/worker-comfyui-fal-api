@@ -1,22 +1,19 @@
 # Deployment
 
-This guide explains how to deploy the `worker-comfyui` as a serverless endpoint on RunPod, covering both pre-built official images and custom-built images.
+This guide explains how to deploy the CPU-only `worker-comfyui` as a serverless endpoint on RunPod.
 
-## Deploying Pre-Built Official Images
-
-This is the simplest method if the official images meet your needs.
+## Deploying the Worker
 
 ### Create your template (optional)
 
 - Create a [new template](https://runpod.io/console/serverless/user/templates) by clicking on `New Template`
 - In the dialog, configure:
   - Template Name: `worker-comfyui` (or your preferred name)
-  - Template Type: serverless (change template type to "serverless")
-  - Container Image: Use one of the official tags, e.g., `runpod/worker-comfyui:<version>-sd3`. (Refer to the main [README.md](../README.md#available-docker-images) for available image tags and the current version).
-  - Container Registry Credentials: Leave as default (images are public).
-  - Container Disk: Adjust based on the chosen image tag, see [GPU Recommendations](#gpu-recommendations).
-  - (optional) Environment Variables: Configure S3 or other settings (see [Configuration Guide](configuration.md)).
-    - Note: If you don't configure S3, images are returned as base64. For persistent storage across jobs without S3, consider using a [Network Volume](customization.md#method-2-network-volume-alternative-for-models). If models on your network volume are not being detected, see [Network Volumes & Model Paths](network-volumes.md) for troubleshooting steps.
+  - Template Type: serverless
+  - Container Image: `worker-comfyui:latest` (or your custom image if building your own)
+  - Container Registry Credentials: Leave as default
+  - Container Disk: Minimum 10 GB (recommended 15 GB for models and intermediate files)
+  - (optional) Environment Variables: Configure bucket uploads, FAL API key, or other settings (see [Configuration Guide](configuration.md) or [README Environment Variables](../README.md#environment-variables)).
 - Click on `Save Template`
 
 ### Create your endpoint
@@ -25,29 +22,25 @@ This is the simplest method if the official images meet your needs.
 - In the dialog, configure:
 
   - Endpoint Name: `comfy` (or your preferred name)
-  - Worker configuration: Select a GPU that can run the model included in your chosen image (see [GPU recommendations](#gpu-recommendations)).
-  - Active Workers: `0` (Scale as needed based on expected load).
-  - Max Workers: `3` (Set a limit based on your budget and scaling needs).
-  - GPUs/Worker: `1`
-  - Idle Timeout: `5` (Default is usually fine, adjust if needed).
-  - Flash Boot: `enabled` (Recommended for faster worker startup).
-  - Select Template: `worker-comfyui` (or the name you gave your template).
-  - (optional) Advanced: If you are using a Network Volume, select it under `Select Network Volume`. See the [Customization Guide](customization.md#method-2-network-volume-alternative-for-models). For detailed model path layout and debugging tips, see [Network Volumes & Model Paths](network-volumes.md).
+  - Worker configuration: **CPU only** (no GPU required). Select any available CPU instance.
+  - Active Workers: `0` (Scale as needed based on expected load)
+  - Max Workers: `3` (Set a limit based on your budget and scaling needs)
+  - Idle Timeout: `5` (minutes; adjust as needed)
+  - Flash Boot: `enabled` (Recommended for faster worker startup)
+  - Select Template: `worker-comfyui` (or the name you gave your template)
+  - (optional) Advanced: If using a Network Volume for models, select it under `Select Network Volume`. See [Customization Guide](customization.md#method-2-network-volume-alternative-for-models) and [Network Volumes & Model Paths](network-volumes.md).
+  - (optional) Environment Variables: Configure bucket uploads, FAL API key, or other settings (see [Configuration Guide](configuration.md)). **Note:** All requests must include `user_id` in the job input (see [API Specification](../README.md#api-specification)).
 
 - Click `deploy`
 - Your endpoint will be created. You can click on it to view the dashboard and find its ID.
 
-### GPU recommendations (for Official Images)
+## Resource Requirements
 
-| Model                     | Image Tag Suffix | Minimum VRAM Required | Recommended Container Size |
-| ------------------------- | ---------------- | --------------------- | -------------------------- |
-| Stable Diffusion XL       | `sdxl`           | 8 GB                  | 15 GB                      |
-| Stable Diffusion 3 Medium | `sd3`            | 5 GB                  | 20 GB                      |
-| FLUX.1 Schnell            | `flux1-schnell`  | 24 GB                 | 30 GB                      |
-| FLUX.1 dev                | `flux1-dev`      | 24 GB                 | 30 GB                      |
-| Base (No models)          | `base`           | N/A                   | 5 GB                       |
+This is a **CPU-only** worker image. No GPU is required.
 
-_Note: Container sizes are approximate and might vary slightly. Custom images will vary based on included models/nodes._
+- **Minimum Container Disk:** 10 GB (for ComfyUI, custom nodes, and runtime files)
+- **Memory:** 4 GB minimum recommended (varies by workflow complexity)
+- **GPU:** Not required or used
 
 ## Deploying Custom Setups
 
