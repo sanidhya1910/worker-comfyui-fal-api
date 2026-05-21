@@ -8,6 +8,8 @@ FROM ${BASE_IMAGE} AS base
 ARG COMFYUI_VERSION=latest
 ARG FAL_API_NODE_REPO=https://github.com/gokayfem/ComfyUI-fal-API
 ARG ART_VENTURE_NODE_REPO=https://github.com/sipherxyz/comfyui-art-venture
+ARG RMBG_NODE_REPO=https://github.com/1038lab/ComfyUI-RMBG
+ARG KJ_NODES_REPO=https://github.com/kijai/ComfyUI-KJNodes
 
 # Prevents prompts from packages asking for user input during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -37,20 +39,23 @@ RUN apt-get update && apt-get install -y \
 # Clean up to reduce image size
 RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
-# Install uv (latest) using official installer and create isolated venv
-RUN wget -qO- https://astral.sh/uv/install.sh | sh \
-    && ln -s /root/.local/bin/uv /usr/local/bin/uv \
-    && ln -s /root/.local/bin/uvx /usr/local/bin/uvx \
-    && uv venv /opt/venv
+# Install uv using the official docker image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Use the virtual environment for all subsequent commands
-ENV PATH="/opt/venv/bin:${PATH}"
+# Add local bin to PATH so uv tools work
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Install comfy-cli + dependencies needed by it to install ComfyUI
-RUN uv pip install comfy-cli pip setuptools wheel
+# Install comfy-cli cleanly as an isolated tool
+RUN uv tool install comfy-cli && rm -rf /root/.cache/uv
 
-# Install ComfyUI in CPU-only mode
-RUN /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --cpu
+# Install ComfyUI in CPU-only mode.
+# This will natively clone the github repo and create /comfyui/.venv
+RUN /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --cpu \
+    && rm -rf /root/.cache/uv /root/.cache/pip
+
+# Force all subsequent uv pip and python commands to strictly use the ComfyUI virtual env
+ENV VIRTUAL_ENV="/comfyui/.venv"
+ENV PATH="/comfyui/.venv/bin:${PATH}"
 
 # Change working directory to ComfyUI
 WORKDIR /comfyui
@@ -61,8 +66,11 @@ ADD src/extra_model_paths.yaml ./
 # Go back to the root
 WORKDIR /
 
-# Install Python runtime dependencies for the handler
-RUN uv pip install runpod requests websocket-client boto3
+# Install Python runtime dependencies for the handler and ComfyUI startup
+ADD requirements.txt ./
+RUN uv pip install --no-cache boto3 \
+    && uv pip install --no-cache -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu \
+    && rm -rf /root/.cache/uv /root/.cache/pip
 
 # Add application code and scripts
 ADD src/start.sh src/network_volume.py handler.py test_input.json ./
@@ -73,7 +81,9 @@ COPY scripts/comfy-node-install.sh /usr/local/bin/comfy-node-install
 RUN sed -i 's/\r$//' /usr/local/bin/comfy-node-install && chmod +x /usr/local/bin/comfy-node-install
 
 # Install ComfyUI custom nodes required for fal API integration and art-venture
-RUN comfy-node-install "${FAL_API_NODE_REPO}" "${ART_VENTURE_NODE_REPO}"
+RUN comfy-node-install "${FAL_API_NODE_REPO}" "${ART_VENTURE_NODE_REPO}" \
+    "${RMBG_NODE_REPO}" "${KJ_NODES_REPO}" \
+    && rm -rf /root/.cache/uv /root/.cache/pip /comfyui/.venv/cache
 
 # Prevent pip from asking for confirmation during uninstall steps in custom nodes
 ENV PIP_NO_INPUT=1

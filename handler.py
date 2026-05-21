@@ -46,8 +46,11 @@ COMFY_API_AVAILABLE_INTERVAL_MS = int(
 COMFY_API_AVAILABLE_MAX_RETRIES = int(
     os.environ.get("COMFY_API_AVAILABLE_MAX_RETRIES", 0)
 )
-# Fallback retry limit when PID file is unavailable and retries=0
-COMFY_API_FALLBACK_MAX_RETRIES = 500
+# Fallback retry limit when PID file is unavailable and retries=0.
+# Default to a longer grace period so slower RunPod boots have more time to come up.
+COMFY_API_FALLBACK_MAX_RETRIES = int(
+    os.environ.get("COMFY_API_FALLBACK_MAX_RETRIES", 3000)
+)
 # PID file written by start.sh so we can detect if ComfyUI has crashed
 COMFY_PID_FILE = "/tmp/comfyui.pid"
 # Websocket reconnection behaviour (can be overridden through environment variables)
